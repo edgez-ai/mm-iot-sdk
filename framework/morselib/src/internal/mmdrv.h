@@ -182,6 +182,8 @@ enum mmdrv_interface_type
     MMDRV_INTERFACE_TYPE_STA = 1,
 
     MMDRV_INTERFACE_TYPE_AP = 2,
+
+    MMDRV_INTERFACE_TYPE_MESH = 5,
 };
 
 
@@ -696,5 +698,4 @@ struct mmpkt *mmdrv_host_get_beacon(void);
 #ifdef __cplusplus
 }
 #endif
-
 

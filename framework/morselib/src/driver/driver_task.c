@@ -27,7 +27,10 @@ static mmtrace_channel drv_channel_handle;
 #endif
 
 #define DRV_TASK_PRIO             MMOSAL_TASK_PRI_HIGH
-#define DRV_TASK_STACK_SIZE_WORDS 768
+#ifndef MMDRV_TASK_STACK_SIZE_WORDS
+#define MMDRV_TASK_STACK_SIZE_WORDS 768
+#endif
+#define DRV_TASK_STACK_SIZE_WORDS MMDRV_TASK_STACK_SIZE_WORDS
 
 #define DRV_TASK_MAX_SLEEP_MS (INT32_MAX / 2)
 
@@ -93,6 +96,7 @@ void driver_task_schedule_notification_at(struct driver_data *driverd,
     uint32_t ii;
     bool signal_driver = true;
 
+    MMOSAL_ASSERT(evt > DRV_EVT_NONE && evt < DRV_EVT_COUNT);
     MMOSAL_TASK_ENTER_CRITICAL();
 
     for (ii = 0; ii < MAX_SCHEDULED_EVTS; ii++)
@@ -121,7 +125,11 @@ void driver_task_schedule_notification_at(struct driver_data *driverd,
     }
 
 
+    /* With one slot per event and coalescing above, this means corruption.
+     * Never enter the reset/assert handler while holding the OSAL lock. */
+    MMOSAL_TASK_EXIT_CRITICAL();
     MMOSAL_ASSERT(false);
+    return;
 
 exit:
     MMOSAL_TASK_EXIT_CRITICAL();
@@ -150,6 +158,9 @@ void driver_task_main(void *arg)
 
         while (driverd->driver_task.pending_evts != 0)
         {
+            /* RX may continuously re-notify itself. Do not wait for idle
+             * before promoting expired TX/power-save timers to pending. */
+            driver_task_process_scheduled_evts(driverd);
             MMLOG_DBG("Pending evts: %08lx\n", driverd->driver_task.pending_evts);
             DRV_TASK_TRACE("Pending evts: %x", driverd->driver_task.pending_evts);
 

@@ -80,7 +80,8 @@ enum driver_task_event
     DRV_EVT_SHUTDOWN,
     DRV_EVT_STOP_NOTICATION,
 
-    DRV_EVT_BEACON_REQ_PEND
+    DRV_EVT_BEACON_REQ_PEND,
+    DRV_EVT_COUNT
 };
 
 
@@ -115,7 +116,11 @@ enum morse_state_flags
     MORSE_STATE_FLAG_DATA_TX_STOPPED,
 };
 
-#define MAX_SCHEDULED_EVTS (4)
+/* Scheduled events are coalesced by type.  Under simultaneous mesh data,
+ * management TX, beaconing, and power-save activity four slots are not
+ * sufficient.  Reserve one slot for every valid event, as in the stable
+ * ESP32 integration, so exhaustion cannot turn into a reset or stale timer. */
+#define MAX_SCHEDULED_EVTS (DRV_EVT_COUNT - 1)
 
 struct driver_data
 {
@@ -195,6 +200,7 @@ struct driver_data
     struct
     {
         uint16_t vif_id;
+        uint16_t interval_tu;
         bool enabled;
         uint32_t count;
         int (*beacon_work_fn)(struct driver_data *driverd);

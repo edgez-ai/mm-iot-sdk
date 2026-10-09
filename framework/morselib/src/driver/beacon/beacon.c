@@ -7,6 +7,27 @@
 #include "driver/driver.h"
 #include "driver/morse_driver/hw.h"
 
+/* Firmware normally requests the next beacon through its beacon IRQ. Keep a
+ * slightly-late software request armed as a watchdog so beaconing continues
+ * when that IRQ is absent or intermittently lost. A real IRQ cancels the
+ * scheduled request before it expires. */
+#define BEACON_DEFAULT_INTERVAL_TU           (100U)
+#define BEACON_REQUEST_WATCHDOG_MARGIN_MS    (10U)
+
+static uint32_t morse_beacon_watchdog_ms(const struct driver_data *driverd)
+{
+    uint32_t interval_tu = driverd->beacon.interval_tu;
+
+    if (interval_tu == 0U)
+    {
+        interval_tu = BEACON_DEFAULT_INTERVAL_TU;
+    }
+
+    /* One TU is 1024 us. Round up to milliseconds, then stay slightly behind
+     * the firmware TBTT request so a real IRQ wins and cancels the watchdog. */
+    return ((interval_tu * 1024U) + 999U) / 1000U + BEACON_REQUEST_WATCHDOG_MARGIN_MS;
+}
+
 void morse_beacon_irq_handle(struct driver_data *driverd, uint32_t status1_reg)
 {
     uint8_t beacon_irq_num = MORSE_INT_BEACON_BASE_NUM + driverd->beacon.vif_id;
@@ -47,6 +68,8 @@ static int morse_beacon_work_(struct driver_data *driverd)
         struct mmpkt *beacon = mmdrv_host_get_beacon();
         if (beacon == NULL)
         {
+            driver_task_schedule_notification(driverd, DRV_EVT_BEACON_REQ_PEND,
+                                              morse_beacon_watchdog_ms(driverd));
             MMLOG_WRN("Failed to get beacon\n");
             return -MM_EINVAL;
         }
@@ -59,7 +82,22 @@ static int morse_beacon_work_(struct driver_data *driverd)
         }
 
         MMLOG_VRB("Sending beacon to SKBQ\n");
-        return morse_skbq_mmpkt_tx(mq, beacon, MORSE_SKB_CHAN_BEACON);
+        int ret = morse_skbq_mmpkt_tx(mq, beacon, MORSE_SKB_CHAN_BEACON);
+        if (ret == 0)
+        {
+            driverd->beacon.count++;
+        }
+
+        /* Keep a recurring software TBTT fallback armed. The previous code
+         * armed only the first request, so radios that did not raise the
+         * beacon IRQ transmitted at most two mesh beacons after boot. */
+        if (driverd->beacon.enabled)
+        {
+            driver_task_schedule_notification(driverd,
+                                               DRV_EVT_BEACON_REQ_PEND,
+                                               morse_beacon_watchdog_ms(driverd));
+        }
+        return ret;
     }
 
     return 0;
@@ -73,6 +111,9 @@ int morse_beacon_start(struct driver_data *driverd, uint16_t vif_id)
     driverd->beacon.vif_id = vif_id;
     driverd->beacon.beacon_work_fn = morse_beacon_work_;
     driver_task_notify_event(driverd, DRV_EVT_BEACON_REQ_PEND);
+    /* Arm the initial watchdog as well as the immediate first request. */
+    driver_task_schedule_notification(driverd, DRV_EVT_BEACON_REQ_PEND,
+                                      morse_beacon_watchdog_ms(driverd));
 
     int ret = morse_beacon_set_irq_enabled(driverd, true);
     if (ret != 0)

@@ -544,6 +544,8 @@ enum mmwlan_status mmdrv_add_if(uint16_t *vif_id,
                      "MMDRV_INTERFACE_TYPE_STA/MORSE_CMD_INTERFACE_TYPE_STA enum mismatch");
     MM_STATIC_ASSERT((int)MMDRV_INTERFACE_TYPE_AP == (int)MORSE_CMD_INTERFACE_TYPE_AP,
                      "MMDRV_INTERFACE_TYPE_AP/MORSE_CMD_INTERFACE_TYPE_AP enum mismatch");
+    MM_STATIC_ASSERT((int)MMDRV_INTERFACE_TYPE_MESH == (int)MORSE_CMD_INTERFACE_TYPE_MESH,
+                     "MMDRV_INTERFACE_TYPE_MESH/MORSE_CMD_INTERFACE_TYPE_MESH enum mismatch");
 
     if (!driver_data.started)
     {
@@ -559,6 +561,10 @@ enum mmwlan_status mmdrv_add_if(uint16_t *vif_id,
 
         case MMDRV_INTERFACE_TYPE_AP:
             if_type = MORSE_CMD_INTERFACE_TYPE_AP;
+            break;
+
+        case MMDRV_INTERFACE_TYPE_MESH:
+            if_type = MORSE_CMD_INTERFACE_TYPE_MESH;
             break;
 
         default:
@@ -858,6 +864,8 @@ enum mmwlan_status mmdrv_cfg_bss(uint16_t vif_id,
     {
         return MMWLAN_NOT_RUNNING;
     }
+
+    driver_data.beacon.interval_tu = beacon_int;
 
     struct morse_cmd_req_bss_config cmd =
         MORSE_COMMAND_INIT(cmd,
