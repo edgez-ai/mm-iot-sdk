@@ -34,6 +34,37 @@
 
 #include "mmregdb.h"
 
+const struct mmwlan_s1g_channel *mmregdb_lookup_channel(
+    const char country_code[MMWLAN_COUNTRY_CODE_LEN],
+    uint32_t centre_freq_hz, uint8_t bandwidth_mhz)
+{
+    const struct mmwlan_s1g_channel_list *domain;
+
+    if (country_code == NULL || country_code[0] == '\0' ||
+        country_code[1] == '\0' || country_code[2] != '\0' ||
+        centre_freq_hz == 0U || bandwidth_mhz == 0U)
+    {
+        return NULL;
+    }
+
+    domain = mmwlan_lookup_regulatory_domain(get_regulatory_db(), country_code);
+    if (domain == NULL)
+    {
+        return NULL;
+    }
+
+    for (unsigned index = 0U; index < domain->num_channels; ++index)
+    {
+        const struct mmwlan_s1g_channel *candidate = &domain->channels[index];
+        if (candidate->centre_freq_hz == centre_freq_hz &&
+            candidate->bw_mhz == bandwidth_mhz)
+        {
+            return candidate;
+        }
+    }
+    return NULL;
+}
+
 /** List of valid S1G channels for Australia. */
 const struct mmwlan_s1g_channel s1g_channels_AU[] = {
     /* Ctr Freq (Hz), Duty Cycle (%/100), Omit Control Response, Global Op Class, S1G Op Class, S1G Chan #, Op BW, Max Tx EIRP (dBm), Min Packet Spacing Window (microsec), airtime_min (microsec), airtime_max (microsec) */
