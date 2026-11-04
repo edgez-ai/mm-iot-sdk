@@ -591,6 +591,9 @@ enum mmdrv_rx_metadata_flags
 {
 
     MMDRV_RX_FLAG_DECRYPTED = 0x01,
+    MMDRV_RX_FLAG_FCS_INCLUDED = 0x02,
+    MMDRV_RX_FLAG_CRC_ERROR = 0x04,
+    MMDRV_RX_FLAG_ERROR = 0x08,
 };
 
 

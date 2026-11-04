@@ -296,11 +296,14 @@ void morse_skbq_process_rx(struct driver_data *driverd, struct mmpkt *mmpkt)
         rx_metadata->freq_100khz = le16toh(hdr->rx_status.freq_100khz);
         rx_metadata->bw_mhz = morse_ratecode_bw_index_to_s1g_bw_mhz(
             morse_ratecode_bw_index_get(hdr->rx_status.morse_rc));
-        rx_metadata->flags = ((hdr->rx_status.flags & MORSE_RX_STATUS_FLAGS_DECRYPTED) ?
-                                  MMDRV_RX_FLAG_DECRYPTED :
-                                  0);
+        const uint32_t rx_flags = le32toh(hdr->rx_status.flags);
+        rx_metadata->flags =
+            ((rx_flags & MORSE_RX_STATUS_FLAGS_DECRYPTED) ? MMDRV_RX_FLAG_DECRYPTED : 0) |
+            ((rx_flags & MORSE_RX_STATUS_FLAGS_FCS_INCLUDED) ? MMDRV_RX_FLAG_FCS_INCLUDED : 0) |
+            ((rx_flags & MORSE_RX_STATUS_FLAGS_CRC_ERROR) ? MMDRV_RX_FLAG_CRC_ERROR : 0) |
+            ((rx_flags & MORSE_RX_STATUS_FLAGS_ERROR) ? MMDRV_RX_FLAG_ERROR : 0);
         rx_metadata->noise_dbm = hdr->rx_status.noise_dbm;
-        rx_metadata->vif_id = MORSE_RX_STATUS_FLAGS_VIF_ID_GET(hdr->rx_status.flags);
+        rx_metadata->vif_id = MORSE_RX_STATUS_FLAGS_VIF_ID_GET(rx_flags);
         mmpkt_close(&view);
         mmdrv_host_process_rx_frame(mmpkt, channel);
     }
