@@ -285,10 +285,14 @@ static void wnm_sleep_fsm_active_exit(struct wnm_sleep_fsm_instance *inst,
         umac_connection_handle_hw_restarted(umacd);
         umac_config_set_chip_powerdown_enabled(umacd, false);
     }
-    else
-    {
-        (void)mmdrv_set_chip_wnm_sleep_enabled(sta_vif_id, false);
-    }
+    /* HW restoration runs while this FSM is still ACTIVE, so
+     * UMAC_WNM_SLEEP_EVENT_HW_RESTARTED reinstates chip WNM sleep. Clear it
+     * on BOTH exit paths, otherwise DTIM reception remains suppressed after
+     * powerdown wake even when the AP accepts the WNM exit request.
+     * Reinstalling the interface may also change its firmware VIF ID. */
+    sta_vif_id = umac_interface_get_vif_id(umacd, UMAC_INTERFACE_STA);
+    MMOSAL_ASSERT(sta_vif_id != MMDRV_VIF_ID_INVALID);
+    (void)mmdrv_set_chip_wnm_sleep_enabled(sta_vif_id, false);
 
     umac_datapath_unpause(umacd, UMAC_DATAPATH_PAUSE_SOURCE_WNM_SLEEP);
     umac_health_check_unset_veto(umacd, UMAC_HEALTH_CHECK_VETO_ID_WNM_SLEEP);
